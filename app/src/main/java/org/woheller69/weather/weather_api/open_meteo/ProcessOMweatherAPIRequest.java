@@ -3,6 +3,7 @@ package org.woheller69.weather.weather_api.open_meteo;
 import android.appwidget.AppWidgetManager;
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Handler;
 import android.widget.RemoteViews;
@@ -12,6 +13,7 @@ import com.android.volley.VolleyError;
 
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.json.JSONArray;
 import org.woheller69.weather.R;
 import org.woheller69.weather.activities.NavigationActivity;
 import org.woheller69.weather.database.CityToWatch;
@@ -142,8 +144,62 @@ public class ProcessOMweatherAPIRequest implements IProcessHttpRequest {
             ViewUpdater.updateWeekForecasts(weekforecasts);
             ViewUpdater.updateForecasts(hourlyforecasts);
 
+            // TODO test
+            broadcastWeather(context, json);
+
         } catch (JSONException e) {
             e.printStackTrace();
+        }
+    }
+
+    public void broadcastWeather(Context context, JSONObject responseHeader)
+    {
+        try {
+            JSONObject currentWeather = responseHeader.getJSONObject("current_weather");
+            JSONObject daily = responseHeader.getJSONObject("daily");
+            JSONObject weatherJson = new JSONObject();
+
+            weatherJson.put("timestamp", currentWeather.getInt("time"));
+            weatherJson.put("location", responseHeader.getString("timezone")); // todo
+            weatherJson.put("currentTemp", Math.round(currentWeather.getDouble("temperature"));
+            weatherJson.put("todayMinTemp", daily.getJSONArray("temperature_2m_min").get(0));
+            weatherJson.put("todayMaxTemp", daily.getJSONArray("temperature_2m_max").get(0));
+            //weatherJson.put("todayMinTemp", Math.round(weatherUtils.getTemperature(TemperatureUnit.KELVIN, weatherResponseOneCall.daily[0].temp.min)));
+            //weatherJson.put("todayMaxTemp", Math.round(weatherUtils.getTemperature(TemperatureUnit.KELVIN, weatherResponseOneCall.daily[0].temp.max)));
+            weatherJson.put("currentCondition", currentWeather.getInt("weathercode")); // TODO
+            weatherJson.put("currentConditionCode", currentWeather.getInt("weathercode"));
+            //weatherJson.put("currentHumidity", weatherResponseOneCall.current.humidity);
+            weatherJson.put("currentHumidity", daily.getJSONArray("precipitation_sum").get(0));
+            weatherJson.put("windSpeed", currentWeather.getDouble("windspeed"));
+            weatherJson.put("windDirection", currentWeather.getDouble("winddirection"));
+            weatherJson.put("uvIndex", daily.getJSONArray("uv_index_max").get(0));
+            //weatherJson.put("precipProbability", Math.round(weatherResponseOneCall.daily[0].pop * 100));
+            weatherJson.put("precipProbability", 0);
+
+            JSONArray weatherForecasts = new JSONArray();
+
+            for (int i = 1; i < daily.length(); i++) {
+                JSONObject dailyJsonData = new JSONObject();
+
+                dailyJsonData.put("conditionCode", daily.getJSONArray("weathercode").get(i);
+                dailyJsonData.put("humidity", daily.getJSONArray("precipitation_sum").get(i)); // TODO
+                dailyJsonData.put("maxTemp", daily.getJSONArray("temperature_2m_max").get(i));
+                dailyJsonData.put("minTemp", daily.getJSONArray("temperature_2m_min").get(i));
+                dailyJsonData.put("uvIndex", daily.getJSONArray("uv_index_max").get(i));
+                dailyJsonData.put("precipProbability", daily.getJSONArray("precipitation_sum").get(i));
+
+                weatherForecasts.put(dailyJsonData);
+            }
+
+            weatherJson.put("forecasts", weatherForecasts);
+
+            context.sendBroadcast(
+                    new Intent("nodomain.freeyourgadget.gadgetbridge.ACTION_GENERIC_WEATHER")
+                            .putExtra("WeatherJson", weatherJson.toString())
+                            .setFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES));
+        } catch (JSONException e) {
+            //
+            ;
         }
     }
 
